@@ -1,0 +1,9 @@
+# bundle layer: mounted by `dsh plugin add`, so a profile gets this row without
+# manual cordis.patch.yml edits. A profile-level patch can still disable the row
+# by id.
+#
+# The id is part of the contract: it is the settings namespace, and it is the
+# key the browser half pairs with. Renaming it moves the namespace.
+- insert:
+  - id: deepwater
+    name: dsh-deepwater

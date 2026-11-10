@@ -1,0 +1,269 @@
+/*
+ * dsh-visual-polish - an aesthetic pass that stays in the token layer.
+ *
+ * Three rules shape every line of this file:
+ *
+ * 1. TOKENS, NOT COMPONENTS. The app publishes its typography, radii, focus
+ *    ring and scrollbar as CSS custom properties (checked against the theme
+ *    bundle that ships in app.asar: --dsw-font-markdown-*, --dsw-radius-*,
+ *    --dsw-focus-ring-color, --dsh-scrollbar-width). Overriding those changes
+ *    the whole UI coherently; targeting component classes would break on the
+ *    next build, and the class names are hashed per build
+ *    (`_markdown_1wejo_28`), so only a `[class*="_markdown_"]` hook is used,
+ *    and only for spacing the tokens cannot express.
+ *
+ * 2. IT COMPOSES WITH THE USER'S OWN FONT SIZE. The app lets the reader pick a
+ *    content size (10-22px) and derives everything from --dsh-content-font-size.
+ *    This file never overwrites that variable - it derives from it, so a reader
+ *    who prefers 16px keeps 16px and still gets the extra air.
+ *
+ * 3. IT ADDS NO MOTION. No @keyframes, no animation, no transition and no
+ *    !important anywhere: the interaction feedback the app already has is kept,
+ *    and nothing here animates. verify-verify asserts all four absences.
+ *
+ * Where the declarations land: `html[data-polish]` beats the `:root` block, and
+ * `html[data-polish] body` beats the app's own `body` and
+ * `body[data-ds-dark-theme]` blocks, which is why those two selectors are always
+ * written together. Nothing here sets a colour literal, so light and dark both
+ * keep the palette the app designed - the only colour this file touches is the
+ * focus ring, and it points at the brand token.
+ */
+
+/* ---------- shared by every preset ---------- */
+
+/* The app ships --dsw-focus-ring-color: transparent, so a keyboard-focused
+   control has no visible ring. Pointing it at the brand token is the smallest
+   change in this file and the one that actually matters: it makes focus
+   visible again without inventing a new visual language. */
+html[data-polish],
+html[data-polish] body {
+  --dsw-focus-ring-color: var(--dsw-alias-brand-primary);
+}
+
+/* Text selection, from the same brand token, so it reads as part of the theme
+   in both light and dark. color-mix is Chromium 111+; a browser without it
+   drops the declaration and keeps the built-in selection colour. */
+html[data-polish] ::selection {
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 24%, transparent);
+}
+
+/* ---------- preset: roomy - the chosen default ---------- */
+
+html[data-polish="roomy"],
+html[data-polish="roomy"] body {
+  /* +1px on the body text and +4px of leading. At the default 14px this lands
+     on 15px/26px; at a reader's 16px it lands on 17px/28px. */
+  --dsw-font-markdown-base-font-size: calc(var(--dsh-content-font-size, 14px) + 1px);
+  --dsw-font-markdown-base-line-height: calc(var(--dsh-content-font-size, 14px) + 12px);
+  --dsw-font-markdown-base: 400 var(--dsw-font-markdown-base-font-size) / var(--dsw-font-markdown-base-line-height) var(--dsw-font-family);
+  --dsw-font-markdown-base-strong-font-size: calc(var(--dsh-content-font-size, 14px) + 1px);
+  --dsw-font-markdown-base-strong-line-height: calc(var(--dsh-content-font-size, 14px) + 12px);
+  --dsw-font-markdown-base-strong: 600 var(--dsw-font-markdown-base-strong-font-size) / var(--dsw-font-markdown-base-strong-line-height) var(--dsw-font-family);
+
+  /* Headings keep the app's sizes (they already track the reader's setting) and
+     gain 2px of leading, so a heading never sits tighter than the text it
+     introduces. */
+  --dsw-font-markdown-h1-line-height: calc(30px + var(--dsh-content-font-delta) + 2px);
+  --dsw-font-markdown-h1: 700 calc(21px + var(--dsh-content-font-delta)) / var(--dsw-font-markdown-h1-line-height) var(--dsw-font-family);
+  --dsw-font-markdown-h2-line-height: calc(28px + var(--dsh-content-font-delta) + 2px);
+  --dsw-font-markdown-h2: 700 calc(19px + var(--dsh-content-font-delta)) / var(--dsw-font-markdown-h2-line-height) var(--dsw-font-family);
+  --dsw-font-markdown-h3-line-height: calc(26px + var(--dsh-content-font-delta) + 2px);
+  --dsw-font-markdown-h3: 700 calc(18px + var(--dsh-content-font-delta)) / var(--dsw-font-markdown-h3-line-height) var(--dsw-font-family);
+  --dsw-font-markdown-h4-line-height: calc(24px + var(--dsh-content-font-delta) + 2px);
+  --dsw-font-markdown-h4: 600 var(--dsh-content-font-size, 14px) / var(--dsw-font-markdown-h4-line-height) var(--dsw-font-family);
+
+  /* Softer corners on cards, code blocks and panels. */
+  --dsw-radius-sm: 10px;
+  --dsw-radius-md: 14px;
+  --dsw-radius-lg: 18px;
+
+  /* 5px is a hairline to grab; 8px is comfortable and still unobtrusive. */
+  --dsh-scrollbar-width: 8px;
+}
+
+/* Spacing the tokens cannot express. The app's own sheet uses single-class
+   selectors (`.markdown p`), so the extra attribute selector here is what makes
+   these win the cascade without an !important. */
+html[data-polish="roomy"] [class*="_markdown_"] p {
+  margin: 18px 0;
+}
+
+html[data-polish="roomy"] [class*="_markdown_"] :is(h1, h2, h3) {
+  margin: 36px 0 18px;
+}
+
+html[data-polish="roomy"] [class*="_markdown_"] :is(h4, h5, h6) {
+  margin: 20px 0;
+}
+
+html[data-polish="roomy"] [class*="_markdown_"] :is(ul, ol) {
+  margin: 18px 0;
+  padding-left: 22px;
+}
+
+html[data-polish="roomy"] [class*="_markdown_"] li:not(:first-child) {
+  margin-top: 8px;
+}
+
+/* ---------- preset: compact ---------- */
+
+html[data-polish="compact"],
+html[data-polish="compact"] body {
+  --dsw-font-markdown-base-line-height: calc(var(--dsh-content-font-size, 14px) + 8px);
+  --dsw-font-markdown-base: 400 var(--dsh-content-font-size, 14px) / var(--dsw-font-markdown-base-line-height) var(--dsw-font-family);
+  --dsw-font-markdown-base-strong-line-height: calc(var(--dsh-content-font-size, 14px) + 8px);
+  --dsw-font-markdown-base-strong: 600 var(--dsh-content-font-size, 14px) / var(--dsw-font-markdown-base-strong-line-height) var(--dsw-font-family);
+  --dsw-font-markdown-h1-line-height: calc(26px + var(--dsh-content-font-delta));
+  --dsw-font-markdown-h1: 700 calc(20px + var(--dsh-content-font-delta)) / var(--dsw-font-markdown-h1-line-height) var(--dsw-font-family);
+  --dsw-font-markdown-h2-line-height: calc(24px + var(--dsh-content-font-delta));
+  --dsw-font-markdown-h2: 700 calc(18px + var(--dsh-content-font-delta)) / var(--dsw-font-markdown-h2-line-height) var(--dsw-font-family);
+  --dsw-font-markdown-h3-line-height: calc(22px + var(--dsh-content-font-delta));
+  --dsw-font-markdown-h3: 700 calc(17px + var(--dsh-content-font-delta)) / var(--dsw-font-markdown-h3-line-height) var(--dsw-font-family);
+  --dsw-font-markdown-h4-line-height: calc(20px + var(--dsh-content-font-delta));
+  --dsw-font-markdown-h4: 600 var(--dsh-content-font-size, 14px) / var(--dsw-font-markdown-h4-line-height) var(--dsw-font-family);
+  --dsw-radius-sm: 6px;
+  --dsw-radius-md: 8px;
+  --dsw-radius-lg: 10px;
+  --dsh-scrollbar-width: 6px;
+}
+
+html[data-polish="compact"] [class*="_markdown_"] p {
+  margin: 10px 0;
+}
+
+html[data-polish="compact"] [class*="_markdown_"] :is(h1, h2, h3) {
+  margin: 22px 0 10px;
+}
+
+html[data-polish="compact"] [class*="_markdown_"] :is(h4, h5, h6) {
+  margin: 12px 0;
+}
+
+html[data-polish="compact"] [class*="_markdown_"] :is(ul, ol) {
+  margin: 10px 0;
+  padding-left: 18px;
+}
+
+html[data-polish="compact"] [class*="_markdown_"] li:not(:first-child) {
+  margin-top: 3px;
+}
+
+/* ---------- each frame gets its own surfaces ---------- */
+
+/* Scoped so that `body[data-ds-dark-theme]` never matches: the dark palette this
+   package deliberately does not touch stays exactly as the app designed it, and
+   the light frame stops being neutral-black-on-white by borrowing the sea's hue
+   for its hairlines. The alphas stay close to the app's own, so contrast is unchanged. */
+html[data-polish] body:not([data-ds-dark-theme]) {
+  /* ---------- the glacier ---------- */
+  /* FROSTED GLASS OVER DEEP WATER.
+     The page is the water: a cold blue that sits well below white, so every
+     pane laid on top of it has something to be raised FROM. The ladder runs
+     water -> glass, and the column is a well sunk into the water. Text is
+     untouched near-black, so the scene changes without the reading changing. */
+  --dsw-alias-bg-base: #dce8f4;
+  --dsw-alias-bg-layer-1: #e8f1fa;
+  --dsw-alias-bg-layer-2: #eff6fc;
+  --dsw-alias-bg-layer-3: #f6fafd;
+  --dsw-specific-sidebar-fill: #cdddf0;
+  /* Panes above the water. */
+  --dsw-alias-bg-module-platform: #f0f6fc;
+  --dsw-alias-bg-overlay: #f9fcfe;
+  --dsw-specific-input-major: #e8f1fa;
+  --dsw-specific-bubble: #e8f1fa;
+  --dsw-specific-bubble-highlight: #f0f6fc;
+  /* Code is glass too: a chip that sits a step above the page it is in. */
+  --dsw-alias-markdown-code-block: #e2ecf8;
+  --dsw-alias-markdown-code-block-banner: #f0f6fc;
+  --dsw-alias-markdown-inline-code: #f7fbfe;
+  --dsw-alias-markdown-code-segment-selected: #f0f6fc;
+  --dsw-alias-markdown-code-segment-unselected: #e2ecf8;
+  --dsw-alias-markdown-placeholder: #f0f6fc;
+  --dsw-alias-markdown-tag: #f0f6fc;
+  /* Hairlines in the hue of the water, so edges read as glass rims and not
+     as grey dirt. The l4 rim is the 0.5px stroke the app draws around
+     elevated surfaces - it was pure black until now. */
+  --dsw-alias-border-l1: rgba(20, 50, 80, 0.12);
+  --dsw-alias-border-l2: rgba(20, 50, 80, 0.20);
+  --dsw-alias-border-l3: rgba(20, 50, 80, 0.28);
+  --dsw-alias-border-l4: rgba(20, 50, 80, 0.22);
+  /* Shadows carry the scene's colour. A neutral black shadow on a blue
+     surface reads as a smudge; a blue one reads as depth. */
+  --dsw-shadow-lv1: 0 2px 4px 0 rgba(18, 52, 92, 0.08);
+  --dsw-shadow-lv2: 0 4px 12px 0 rgba(18, 52, 92, 0.10), 0 2px 8px 0 rgba(18, 52, 92, 0.06);
+  --dsw-shadow-lv3: 0 0 1px 0 rgba(18, 52, 92, 0.16), 0 0 4px 0 rgba(18, 52, 92, 0.06), 0 12px 32px 0 rgba(18, 52, 92, 0.14);
+  /* The scrollbar is part of the scene, not a grey stick in it. */
+  --dsw-alias-scrollbar-bg-l2: #c3d6e9;
+  --dsw-alias-scrollbar-hover-l2: #a8c4de;
+  /* Hover and press carry the same hue as the hairline. */
+  --dsw-alias-interactive-bg-hover: rgba(20, 50, 80, 0.07);
+  --dsw-alias-interactive-bg-active: rgba(20, 50, 80, 0.13);
+}
+
+/* Selection reads a little stronger on a light frame - the same brand token, a
+   touch more of it, because a pale background eats the wash. */
+html[data-polish] body:not([data-ds-dark-theme]) ::selection {
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 30%, transparent);
+}
+
+/* ---------- the dark frame gets its own surfaces: the deep sea ---------- */
+
+/* The dark palette ships as neutral black-grey (#151517 page, #1b1b1c
+   sidebar), which reads as a different material from the ambient layer behind
+   it. These five surfaces are what decide whether a dark profile reads as sea
+   or as grey-on-grey, so they carry the same deep indigo the gradient uses.
+
+   Every value below sits on the sea ramp
+   (#03101d -> #06243a -> #020d18), one step lighter than the layer behind it,
+   so panels separate from the background by lightness rather than by a border.
+   The app's own labels are #f9fafb / #cfd3d6 / #979da6 on these grounds, which
+   is 13.8:1, 8.4:1 and 4.7:1 - all above the floor the app's own palette
+   already uses on #151517.
+
+   --dsw-specific-sidebar-fill also drives the native window caption on
+   Windows (the app reports it to the OS), so the caption plate changes with
+   the rest of the column instead of staying grey. */
+html[data-polish] body[data-ds-dark-theme] {
+  --dsw-alias-bg-base: #0c1720;
+  --dsw-alias-bg-layer-1: #14232e;
+  --dsw-alias-bg-layer-2: #1c2f3c;
+  --dsw-alias-bg-layer-3: #243b49;
+  --dsw-specific-sidebar-fill: #132029;
+  /* Hairlines pick up the same hue, at the app's own alpha strength. */
+  --dsw-alias-border-l1: rgba(126, 196, 224, 0.08);
+  --dsw-alias-border-l2: rgba(126, 196, 224, 0.16);
+  --dsw-alias-border-l3: rgba(126, 196, 224, 0.24);
+  /* Code is a surface too: the block gets the deepest sea, its banner one step
+     up, and inline code the layer colour. */
+  --dsw-alias-markdown-code-block: #0f1e28;
+  --dsw-alias-markdown-code-block-banner: #1b2f3c;
+  --dsw-alias-markdown-inline-code: #223644;
+  --dsw-alias-markdown-code-segment-selected: #243b49;
+  --dsw-alias-markdown-code-segment-unselected: #0f1e28;
+  --dsw-alias-markdown-placeholder: #1b2f3c;
+  --dsw-alias-markdown-tag: #1b2f3c;
+  /* The caption strip is the app's top bar; it takes the sidebar colour so the
+     column and the bar read as one surface instead of two greys. */
+  --dsw-alias-bg-module-platform: #243b49;
+  --dsw-alias-bg-overlay: #2d4857;
+  --dsw-alias-tooltip-bg: #1b2f3c;
+  --dsw-alias-toast-bg: #1b2f3c;
+  --dsw-specific-input-major: #14232e;
+  --dsw-specific-bubble: #14232e;
+  --dsw-specific-bubble-highlight: #243b49;
+}
+
+
+
+/* Selection on the dark frame: the same brand token, a touch more of it, so a
+   selected line does not vanish into the deeper sea. */
+html[data-polish] body[data-ds-dark-theme] ::selection {
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 24%, transparent);
+}
+
+/* ---------- preset: minimal - only the two safety fixes ---------- */
+
+html[data-polish="minimal"],
+html[data-polish="minimal"] body {
+  --dsh-scrollbar-width: 7px;
+}

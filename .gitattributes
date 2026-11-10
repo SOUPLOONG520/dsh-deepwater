@@ -1,0 +1,7 @@
+# Keep the sources byte-stable across platforms: the plugin's own build step
+# hashes nothing, but a stray CRLF in src/ would show up as a whole-file diff.
+* text=auto eol=lf
+
+*.png binary
+*.mp4 binary
+*.woff2 binary

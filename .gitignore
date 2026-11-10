@@ -1,0 +1,12 @@
+# build artefacts that are regenerated from src/
+# client.js IS published: the desktop app only loads plugins that ship a
+# browser entry, so the built file has to be in the repository.
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+
+# local rollback copies
+.rollback-*/
+.rollback_*/
+*.bak
