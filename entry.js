@@ -163,6 +163,19 @@ let injections = 0
 // route hands that back - one line of truth instead of a guess.
 let clientReport = null
 
+// The last beat from the client half. The client half cannot show its own
+// state to anyone but this route, so it sends one every few seconds: a beat
+// that stops is a client half that is not running, which is a very different
+// situation from a client half that is running and says nothing.
+let clientHeartbeat = null
+
+// Whatever went wrong with the newest surface report, if anything. It is kept
+// apart from the report itself on purpose: a report that was cut off in flight
+// (a page unloading mid-fetch, a request that never carried a body) must not
+// replace the last good answer with a parse error, because the reader came
+// for the state of the page, not for the state of the pipe.
+let clientReportError = null
+
 // The last few DOM reports the page sent back, newest first. This exists
 // because the key-glow's fit was fixed twice from assumptions and was wrong
 // twice: the page reports the ancestor chain it actually sees (tag, class,
@@ -190,6 +203,12 @@ function sendJson(res, code, value) {
 export function apply(ctx, config) {
   const server = ctx.webServer
 
+  // The config this row is running with, read at request time. A profile row
+  // can be edited while the app runs; the loader hands the new values to the
+  // fiber, and a route that answered from the values it was mounted with
+  // would keep telling the page the old story.
+  const current = () => normalize(ctx.fiber?.config ?? config)
+
   ctx.effect(() => server.register({
     kind: 'exact',
     path: `${ROUTE}/status`,
@@ -197,10 +216,12 @@ export function apply(ctx, config) {
       sendJson(res, 200, {
         name,
         applied: true,
-        settings: normalize(config),
+        settings: current(),
         presets: PRESETS,
         injections,
         client: clientReport,
+        clientError: clientReportError,
+        heartbeat: clientHeartbeat,
         reports,
       })
     },
@@ -212,10 +233,12 @@ export function apply(ctx, config) {
     kind: 'exact',
     path: `${ROUTE}/settings`,
     handler: (req, res) => {
-      sendJson(res, 200, { name, settings: normalize(config) })
+      sendJson(res, 200, { name, settings: current() })
     },
   }), 'deepwater: settings route')
 
+  // The last report the page sent, plus whatever went wrong with the newest
+  // one.
   ctx.effect(() => server.register({
     kind: 'exact',
     path: `${ROUTE}/client-report`,
@@ -223,14 +246,37 @@ export function apply(ctx, config) {
       const chunks = []
       req.on('data', (chunk) => chunks.push(chunk))
       req.on('end', () => {
-        try {
-          const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-          clientReport = {
-            at: new Date().toISOString(),
-            ...parsed,
+        const raw = Buffer.concat(chunks).toString('utf8')
+        if (raw.trim()) {
+          try {
+            const parsed = JSON.parse(raw)
+            if (parsed && typeof parsed === 'object') {
+              // A heartbeat is its own thing: it says the client half is
+              // alive and what it last heard from the host. It must not
+              // overwrite the surface layer's own report, and the surface
+              // report must not overwrite it.
+              const { heartbeat, ...rest } = parsed
+              if (heartbeat && typeof heartbeat === 'object') {
+                clientHeartbeat = {
+                  at: new Date().toISOString(),
+                  ...heartbeat,
+                }
+              }
+              if (Object.keys(rest).length > 0) {
+                clientReport = {
+                  at: new Date().toISOString(),
+                  ...rest,
+                }
+              }
+              clientReportError = null
+            } else {
+              clientReportError = { at: new Date().toISOString(), error: 'the report was not an object' }
+            }
+          } catch (error) {
+            clientReportError = { at: new Date().toISOString(), error: String(error) }
           }
-        } catch (error) {
-          clientReport = { at: new Date().toISOString(), error: String(error) }
+        } else {
+          clientReportError = { at: new Date().toISOString(), error: 'the report arrived without a body' }
         }
         res.writeHead(204, { 'cache-control': 'no-store' })
         res.end()

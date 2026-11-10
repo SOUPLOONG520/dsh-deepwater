@@ -82,6 +82,11 @@
     } catch (error) {
       console.warn('[deepwater] the ambience layer did not stop cleanly', error)
     }
+    // The package is no longer mounted, and the flag has to say so. The
+    // browser entry asks this flag before it installs anything, so a stale
+    // "yes, still active" would make the next enable a no-op - the theme
+    // would stay off and the page would look broken rather than default.
+    if (G.__DSH_DEEPWATER__) G.__DSH_DEEPWATER__.active = false
     return torn
   }
 

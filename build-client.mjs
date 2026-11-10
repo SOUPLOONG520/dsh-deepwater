@@ -35,6 +35,15 @@ const CLIENT = `/*
  *
  * The disposer is the one-click switch: it tears both layers down and gives
  * the app its own frame back.
+ *
+ * The desktop app boots its own SPA and never sees the Host's index
+ * injection, so the Host cannot push a change down to it. The client half
+ * therefore asks the Host instead: a small watch reads the plugin's own
+ * settings route and follows whatever it says. That is what makes the switch
+ * work in both directions on the desktop - switching the row off takes the
+ * Host half down, the route starts answering 404, and the client half tears
+ * the layers down with it; switching it on again brings the route back, and
+ * the layers come back with it.
  */
 
 window.__ModuleLoader__.load({
@@ -48,13 +57,20 @@ window.__ModuleLoader__.load({
     var API = ${JSON.stringify(API)}
     var ROUTE = ${JSON.stringify(ROUTE)}
 
+    // The settings the layers are running with right now, and the state of
+    // the watch. Both live at factory scope because the watch outlives a
+    // single apply(): it has to be able to put the layers back.
+    var current = Object.assign({}, DEFAULTS)
+    var watchTimer = null
+    var hostSeen = false
+
     function surfaceConfig(settings) {
-      return { enabled: true, preset: settings.preset, base: ROUTE }
+      return { enabled: settings.enabled !== false, preset: settings.preset, base: ROUTE }
     }
 
     function ambienceConfig(settings) {
       return {
-        enabled: true,
+        enabled: settings.enabled !== false,
         background: settings.background,
         deepBackground: settings.deepBackground,
         particles: settings.particles,
@@ -91,9 +107,21 @@ window.__ModuleLoader__.load({
       } catch (error) {
         console.warn('[deepwater] client half: the ambience layer did not stop cleanly', error)
       }
+      // The package is off now, and the flag has to say so. The guard below
+      // reads it before installing anything, so a stale "still active" would
+      // turn the next enable into a no-op: the theme would stay off and the
+      // page would look broken rather than plain.
+      if (globalThis.__DSH_DEEPWATER__) globalThis.__DSH_DEEPWATER__.active = false
     }
 
     function install(settings) {
+      current = Object.assign({}, settings)
+      if (settings.enabled === false) {
+        // The package is configured off. Installing nothing is the same as
+        // tearing down what is there.
+        restore()
+        return
+      }
       globalThis.__DSH_DEEPWATER_CFG__ = settings
       globalThis.__DSH_DEEPWATER_BASE__ = ROUTE
       globalThis.__DSH_POLISH_CFG__ = surfaceConfig(settings)
@@ -106,6 +134,24 @@ window.__ModuleLoader__.load({
       run(API)
     }
 
+    // Whether the package is really on screen right now.
+    //
+    // The flag alone is not enough. A page that was switched off by an older
+    // build leaves the flag set while nothing is mounted any more, and a
+    // guard that believes the flag would then skip the install and leave the
+    // page unstyled - which reads as a broken app rather than a disabled
+    // plugin. So the layers get a vote too: the flag counts only when they
+    // agree that they are alive.
+    function isMounted() {
+      var api = globalThis.__DSH_DEEPWATER__
+      if (!api || api.active !== true) return false
+      var surface = globalThis.__DSH_VISUAL_POLISH__
+      if (surface && surface.active !== true) return false
+      var ambience = globalThis.__DSH_AMBIENT_FX__
+      if (ambience && ambience.active !== true) return false
+      return true
+    }
+
     function same(a, b) {
       var keys = Object.keys(DEFAULTS)
       for (var i = 0; i < keys.length; i++) {
@@ -114,41 +160,206 @@ window.__ModuleLoader__.load({
       return true
     }
 
+    // Ask the Host whether the package should be on.
+    //
+    // The Host half is the only place that knows: it reads the profile row.
+    // Switching that row off takes the Host half down, and with it the route
+    // this watch reads - the route answers 404. Switching the row on again
+    // brings the Host half back, and the route answers again. The desktop app
+    // renders its own SPA, so nothing is pushed down to it; the only way for
+    // the client half to learn about a switch is to go and look.
+    //
+    // The same read carries the live settings, so a profile that changed a
+    // preset or a glow value reaches the window without a restart.
+    //
+    // A route that has never answered is not treated as "off": until the Host
+    // has been seen once, a failed read only means "not known yet", and the
+    // baked defaults stand.
+    function readSettings() {
+      return globalThis.fetch(ROUTE + '/settings', { cache: 'no-store' })
+        .then(function (res) {
+          if (!res) return { state: 'unknown' }
+          if (res.status === 404) return { state: 'gone' }
+          if (!res.ok) return { state: 'unknown' }
+          return res.json().then(function (payload) {
+            hostSeen = true
+            if (!payload || !payload.settings) return { state: 'unknown' }
+            return { state: 'live', settings: Object.assign({}, DEFAULTS, payload.settings) }
+          })
+        })
+        .catch(function () { return { state: 'unknown' } })
+    }
+
+    function follow(result) {
+      lastHostState = result.state
+      if (result.state === 'gone') {
+        if (hostSeen && isMounted()) {
+          console.info('[deepwater] client half: the row was switched off, tearing the layers down')
+          restore()
+        }
+        return
+      }
+      if (result.state !== 'live') return
+      var live = result.settings
+      if (live.enabled === false) {
+        if (isMounted()) {
+          console.info('[deepwater] client half: disabled by config, tearing the layers down')
+          restore()
+        }
+        return
+      }
+      if (!isMounted()) {
+        install(live)
+        console.info('[deepwater] client half: the row was switched on, the layers are back')
+        return
+      }
+      if (!same(live, current)) {
+        restore()
+        install(live)
+        console.info('[deepwater] client half: applied the live settings')
+      }
+    }
+
+    function watch() {
+      if (watchTimer !== null) return
+      var tick = function () {
+        watchTimer = setTimeout(tick, 3000)
+        heartbeat()
+        // The poll runs whatever the window is doing. A theme that only
+        // answers while the window happens to be in front would be a theme
+        // that ignores the switch whenever the user is looking elsewhere -
+        // which is exactly when they came back to see the result.
+        readSettings().then(follow)
+      }
+      watchTimer = setTimeout(tick, 3000)
+    }
+
+    // A heartbeat on the report channel. The client half has no way of
+    // showing its own state to anyone but the host, so it says so out loud:
+    // the host keeps the last beat, and a beat that stops is a client half
+    // that is not running.
+    var pollCount = 0
+    var lastHostState = 'unknown'
+
+    function heartbeat() {
+      pollCount += 1
+      try {
+        globalThis.fetch(ROUTE + '/client-report', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            heartbeat: {
+              poll: pollCount,
+              host: lastHostState,
+              mounted: isMounted(),
+              href: (globalThis.location && globalThis.location.href) || ''
+            }
+          })
+        }).catch(function () { /* the host may be gone; the beat is a courtesy */ })
+      } catch (error) {
+        // A host that cannot take a beat is a host that is not there.
+      }
+    }
+
+    // The graph is the host's own answer to "which plugins are on". It is
+    // served by the host and not by this package, so it stays readable at the
+    // exact moment this package's own routes are gone - which is the moment
+    // the client half has to hear about.
+    //
+    // The host removes an entry from the graph when its row is switched off.
+    // The desktop app boots its own SPA, so it is not always told; this
+    // stream is the tell.
+    var graphSource = null
+    var listed = true
+
+    function watchGraph() {
+      if (graphSource !== null) return
+      if (typeof EventSource === 'undefined') return
+      try {
+        graphSource = new EventSource('/plugins/events')
+      } catch (error) {
+        console.info('[deepwater] client half: the plugin stream was not reachable', error)
+        return
+      }
+      graphSource.onmessage = function (event) {
+        var payload = null
+        try {
+          payload = JSON.parse(event.data)
+        } catch (error) {
+          return
+        }
+        if (!payload || payload.type !== 'graph' || !payload.graph) return
+        var entries = payload.graph.entries || []
+        var present = false
+        for (var i = 0; i < entries.length; i++) {
+          if (entries[i] && entries[i].id === 'dsh-deepwater') {
+            present = true
+            break
+          }
+        }
+        if (present === listed) return
+        listed = present
+        if (present) {
+          if (!isMounted()) {
+            install(Object.assign({}, DEFAULTS))
+            console.info('[deepwater] client half: the row is back, the layers are with it')
+          }
+          return
+        }
+        if (isMounted()) {
+          console.info('[deepwater] client half: the row left the graph, tearing the layers down')
+          restore()
+        }
+      }
+      graphSource.onerror = function () {
+        // The host reconnects on its own; nothing to do here.
+      }
+    }
+
+    function unwatch() {
+      if (watchTimer === null) return
+      if (typeof clearTimeout === 'function') clearTimeout(watchTimer)
+      watchTimer = null
+    }
+
+    function closeGraph() {
+      if (graphSource === null) return
+      try {
+        graphSource.close()
+      } catch (error) {
+        // A stream that refuses to close is not worth a warning.
+      }
+      graphSource = null
+    }
+
     return {
       inject: [],
       apply(ctx) {
         return ctx.effect(() => {
-          if (globalThis.__DSH_DEEPWATER__ && globalThis.__DSH_DEEPWATER__.active) {
-            console.info('[deepwater] client half: already active, skipping')
+          if (isMounted()) {
+            console.info('[deepwater] client half: already mounted, skipping')
             return () => {}
           }
 
-          var settings = Object.assign({}, DEFAULTS)
-          install(settings)
-          console.info('[deepwater] client half active; preset=' + settings.preset)
+          install(Object.assign({}, DEFAULTS))
+          console.info('[deepwater] client half active; preset=' + current.preset)
 
           // The desktop app never sees the Host's index injection, so the live
           // settings are read back over the plugin's own route. The baked
           // defaults are already on screen by then, so a profile that changed
           // one value swaps it in without a flash of the unstyled app.
-          try {
-            globalThis.fetch(ROUTE + '/settings', { cache: 'no-store' })
-              .then(function (res) { return res && res.ok ? res.json() : null })
-              .then(function (payload) {
-                if (!payload || !payload.settings) return
-                var live = Object.assign({}, DEFAULTS, payload.settings)
-                if (same(live, settings)) return
-                restore()
-                install(live)
-                settings = live
-                console.info('[deepwater] client half: applied the live settings')
-              })
-              .catch(function () { /* the baked defaults stand */ })
-          } catch (error) {
-            console.info('[deepwater] client half: the live settings were not reachable', error)
-          }
+          readSettings().then(follow)
 
-          return () => { restore() }
+          // From here on the client half keeps asking, so a switch in either
+          // direction reaches the window on its own.
+          watch()
+          watchGraph()
+
+          return () => {
+            unwatch()
+            closeGraph()
+            restore()
+          }
         })
       },
     }
