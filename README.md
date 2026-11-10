@@ -74,6 +74,45 @@ __DSH_DEEPWATER__.restore()   // take both layers down now
 __DSH_DEEPWATER__.state()     // what is mounted right now
 ```
 
+### How the switch reaches the window
+
+The desktop app boots its own page and reads the plugin graph once, at
+startup. A row that is switched off afterwards is not pushed into that page
+the way it is in the browser client, so the client half does not wait for a
+told. It asks the host instead, on a timer:
+
+```text
+every 3 s   GET /plugins/dsh-deepwater/settings
+            200 -> the row is on: read the settings, apply what changed
+            404 -> the row is off: tear both layers down
+```
+
+The settings route is served by this package's own host half, so a row that
+has been switched off answers 404 — the route is gone with the row. The
+client half also listens to the host's plugin stream, which says in one
+frame which rows are on, and uses it as a second opinion.
+
+A theme that only answered while its window was in front would be a theme
+that ignored the switch whenever the user was looking elsewhere, so the
+timer runs whatever the window is doing.
+
+Every few seconds the client half also posts a heartbeat to
+`/plugins/dsh-deepwater/client-report`. The host keeps the last one and
+hands it back in the status route:
+
+```bash
+curl -s http://127.0.0.1:<port>/plugins/dsh-deepwater/status
+```
+
+```json
+{ "client": { "preset": "roomy", "styleBytes": 13241, "bgBase": "#0c1720" },
+  "heartbeat": { "poll": 42, "host": "live", "mounted": true } }
+```
+
+A heartbeat that stops moving is a client half that is not running; a
+heartbeat that says `"host": "gone"` is a client half that has noticed the
+row is off.
+
 ## Install
 
 ### From the repository

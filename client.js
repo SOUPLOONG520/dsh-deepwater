@@ -224,7 +224,6 @@ window.__ModuleLoader__.load({
       }
       watchTimer = setTimeout(tick, 3000)
     }
-
     // A heartbeat on the report channel. The client half has no way of
     // showing its own state to anyone but the host, so it says so out loud:
     // the host keeps the last beat, and a beat that stops is a client half
@@ -234,6 +233,10 @@ window.__ModuleLoader__.load({
 
     function heartbeat() {
       pollCount += 1
+      // One beat in ten. The beat is a sign of life, not a conversation: a
+      // theme that posted every three seconds would be a theme that keeps
+      // the host busy for the sake of a diagnostic.
+      if (pollCount % 10 !== 0) return
       try {
         globalThis.fetch(ROUTE + '/client-report', {
           method: 'POST',
