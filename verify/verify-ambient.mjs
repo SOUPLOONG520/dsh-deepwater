@@ -651,6 +651,45 @@ check('a padded card is lit on its border box, not on its padding box',
   && paddedHalo?.style.left === '0px' && paddedHalo?.style.top === '0px',
   paddedHalo ? `${paddedHalo.style.left},${paddedHalo.style.top} ${paddedHalo.style.width}x${paddedHalo.style.height}` : 'none')
 
+// The composer card is often only a PADDED WRAPPER: the card carries no border
+// of its own, and the box inside it - twenty pixels in, with the visible edge -
+// is what the user sees. Lighting the card put the glow in the padding ring,
+// which is exactly the "the light is not quite on the border" report. The first
+// ancestor that draws a border is the visible box, so the glow belongs there.
+const wrapped = composerCard({
+  cardRect: { width: 620, height: 62, right: 710, top: 490, left: 90 },
+  fieldRect: { width: 580, height: 30, right: 670, top: 505, left: 120 },
+  cardStyle: {
+    backgroundColor: 'rgb(255, 255, 255)', backgroundImage: 'none', borderTopWidth: '0px',
+    borderRadius: '20px', paddingLeft: '20px', paddingRight: '20px', paddingTop: '8px', paddingBottom: '8px',
+  },
+})
+const framedBox = new Node('div')
+framedBox.rect = { width: 600, height: 44, right: 710, top: 498, left: 110 }
+framedBox.computed = {
+  backgroundColor: 'rgb(255, 255, 255)', backgroundImage: 'none', borderTopWidth: '1px',
+  borderLeftWidth: '1px', borderRadius: '14px', position: 'relative', overflow: 'visible',
+  zIndex: 'auto', getPropertyValue: () => '',
+}
+const innerField = new Node('textarea')
+innerField.rect = { width: 580, height: 30, right: 670, top: 505, left: 120 }
+innerField.computed = {
+  backgroundColor: 'transparent', backgroundImage: 'none', position: 'static', zIndex: 'auto',
+  borderRadius: '0px', getPropertyValue: () => '',
+}
+framedBox.appendChild(innerField)
+wrapped.card.appendChild(framedBox)
+run1.document.activeElement = innerField
+key({ key: 'z' })
+const framedHalo = halosIn(wrapped.card)[0]
+check('the glow lands on the bordered box the user sees, not on the padded card around it',
+  framedHalo?.style.left === '20px' && framedHalo?.style.top === '8px'
+  && framedHalo?.style.width === '600px' && framedHalo?.style.height === '44px',
+  framedHalo ? `${framedHalo.style.left},${framedHalo.style.top} ${framedHalo.style.width}x${framedHalo.style.height}` : 'none')
+check('...and it takes the visible box\'s own radius, not the wrapper\'s',
+  framedHalo?.style.borderRadius === '14px',
+  framedHalo?.style.borderRadius)
+
 
 // The observer split: mutations for the swap test, attributes only on the root
 // and on the body, where the shell declares its dark palette.

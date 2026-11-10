@@ -590,6 +590,22 @@
   }
 
   /**
+   * Does this element draw a border of its own?
+   *
+   * The rounded rectangle the user sees around a composer is the element that
+   * carries the border. The composer CARD around it often has none: it is a
+   * padded wrapper whose inner box is the one with the visible edge. Lighting
+   * the card instead puts the glow in the padding ring, a couple of dozen
+   * pixels off the edge the eye follows - "the glow is not quite on the border".
+   */
+  function hasBorder(style) {
+    if (!style) return false
+    var top = parseFloat(style.borderTopWidth) || 0
+    var left = parseFloat(style.borderLeftWidth) || 0
+    return top > 0 || left > 0
+  }
+
+  /**
    * A single px corner radius, or an empty string to keep the default.
    *
    * A compound radius would need the four-corner syntax to stay honest, and
@@ -657,6 +673,13 @@
    * input-sized caps. The union covers row + toolbar by construction, painted or
    * not, and the corner radius is taken from the outermost contributor that has one.
    *
+   * One exception comes first. A composer card is often a PADDED WRAPPER around the
+   * box the user sees: the card has no border of its own, its inner box has the
+   * visible edge, and the two are a card's padding apart. The union would then be
+   * the wrapper - the glow would sit in the padding ring, twenty pixels off the
+   * border the eye follows. So the first ancestor that draws a border wins: its
+   * border box IS the visible box, and the light belongs there.
+   *
    * @returns `{ box, radius, exact }`, or null when there is nothing to light.
    */
   function glowTarget(field) {
@@ -683,6 +706,7 @@
     var painted = isPainted(fieldStyle)
     var included = 0
     var outermost = null
+    var framed = null
 
     var node = field.parentElement || null
     for (var i = 0; i < 6 && node && node !== document.body; i++) {
@@ -692,6 +716,12 @@
       // composer box any more - it is the column, or the page.
       if (!rect || Math.abs(rect.width - fieldRect.width) > tolerance) break
       if (!fitsField(fieldRect, rect, viewportHeight)) break
+      // The first ancestor that draws a border IS the visible box: the composer
+      // card around it is a padded wrapper, and the glow belongs on the border
+      // the user can see, not on the wrapper's outer edge.
+      if (!framed && hasBorder(style)) {
+        framed = { rect: rect, style: style }
+      }
       left = Math.min(left, rect.left)
       top = Math.min(top, rect.top)
       right = Math.max(right, rect.left + rect.width)
@@ -704,6 +734,28 @@
       outermost = node
       included += 1
       node = node.parentElement || null
+    }
+
+    if (framed) {
+      // The bordered box wins over the union: it is the edge the user sees, and
+      // the union would include the wrapper's padding around it.
+      return {
+        box: {
+          left: framed.rect.left,
+          top: framed.rect.top,
+          width: framed.rect.width,
+          height: framed.rect.height,
+          // The visible box has its own corner radius; the host's is usually
+          // rounder, and a rim drawn with the wrong radius does not sit on the
+          // edge it is meant to trace.
+          radius: radiusFrom(framed.style),
+        },
+        radius: radiusFrom(framed.style) || radius,
+        exact: true,
+        // The host stays the outermost card, so the node inside it is positioned
+        // against a stable ancestor while the light lands on the visible edge.
+        node: outermost,
+      }
     }
 
     return {
@@ -1005,6 +1057,9 @@
     nodeStyle.top = (Math.round((box.top - originY) * 100) / 100) + 'px'
     nodeStyle.width = (Math.max(0, Math.round(box.width * 100) / 100)) + 'px'
     nodeStyle.height = (Math.max(0, Math.round(box.height * 100) / 100)) + 'px'
+    // A visible box with its own radius gets it; a plain card keeps inheriting
+    // the host's.
+    if (box.radius) nodeStyle.borderRadius = box.radius
     nodeStyle.right = 'auto'
     nodeStyle.bottom = 'auto'
   }

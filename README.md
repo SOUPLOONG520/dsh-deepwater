@@ -239,6 +239,14 @@ The four style contracts the surface layer is held to:
   halo's `left/top/width/height` explicitly, offset by the border widths, so
   the rim lands on the visible edge. `verify/verify-ambient.mjs` has a case
   for it: *a padded card is lit on its border box, not on its padding box*.
+- **The composer card is usually only a wrapper.** The card itself often draws
+  no border; the box inside it carries the visible edge, one card's padding in.
+  The glow used to be placed on the union of the field and its ancestors, which
+  is the card - so the rim sat in the padding ring, about twenty pixels off the
+  border the eye follows. The ambience layer now takes the first ancestor that
+  actually draws a border and lights *that* box, with that box's own radius.
+  `verify/verify-ambient.mjs` has cases for it: *the glow lands on the bordered
+  box the user sees, not on the padded card around it*.
 
 ## What the two frames look like
 
