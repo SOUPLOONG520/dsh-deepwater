@@ -232,10 +232,17 @@ The four style contracts the surface layer is held to:
   falls back to the defaults compiled into `client.js` and reads the live
   settings back from `/plugins/dsh-deepwater/settings`.
 
-## Screenshots
+## What the two frames look like
 
-![the light frame](docs/light-frame.png)
-![the corner](docs/light-corner.png)
+The deep-water frame is a dark blue-green: the page base sits at `#0c1720`
+and each layer above it is a step lighter, up to `#243b49`. The glacier frame
+is the same shape in pale blue: `#dce8f4` at the base, `#cdddf0` in the
+sidebar, `#e8f1fa` in the cards. The window caption strip is the same colour
+as the sidebar, so the native Windows buttons sit on the water rather than on
+a separate plate.
+
+There are no screenshots in this repository on purpose: the light frame
+carries whatever the machine was showing at the time it was captured.
 
 ## License
 

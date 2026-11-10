@@ -10,3 +10,7 @@ Thumbs.db
 .rollback-*/
 .rollback_*/
 *.bak
+
+# machine screenshots are not published: they carry whatever the window
+# was showing when they were taken.
+docs/
