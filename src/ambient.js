@@ -854,6 +854,9 @@
           // same answer.
           edge: style && paintsEdge(style) ? 1 : 0,
           shadow: style ? String(style.boxShadow || '').slice(0, 60) : '',
+          // A card that clips its own overflow cannot host the halo node, so
+          // the layer has to paint the light from the outside instead.
+          ov: style ? String(style.overflow || '') : '',
           fits: rect && fitsField(fieldRect, rect, vh) ? 1 : 0,
         })
         node = node.parentElement || null
@@ -920,6 +923,15 @@
             var hostStyle = host ? styleOf(host) : null
             return {
               hosted: !!(host && node),
+              // Which of the two paths drew the light, and why. The hosted path
+              // puts a node inside the card and lights the edge from the inside;
+              // the drawn path paints a node over the card and lights it from
+              // the outside. A card that clips its own overflow cannot host the
+              // node, so it always takes the second path.
+              path: (host && node) ? 'hosted' : 'drawn',
+              why: (host && node) ? 'the card hosts the node'
+                : (target && target.node ? 'the card clips its overflow: ' + String((styleOf(target.node) || {}).overflow || '?')
+                  : 'no host box'),
               box: target ? {
                 l: Math.round(target.box.left),
                 t: Math.round(target.box.top),
