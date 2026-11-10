@@ -418,9 +418,12 @@ move({ clientX: 20, clientY: 20 })
 key({ key: 'a' })
 const halo = halosIn(first.card)[0]
 check('a keystroke lights the card through a node inside it', !!halo)
-check('...which is exactly the card\'s box and shape, so it cannot misfit',
-  halo?.style.position === 'absolute' && halo?.style.inset === '0' && halo?.style.borderRadius === 'inherit',
-  halo ? `${halo.style.position}, inset:${halo.style.inset}, radius:${halo.style.borderRadius}` : 'none')
+check('...placed over the card\'s BORDER box, so the rim lands on the edge the user sees',
+  halo?.style.position === 'absolute'
+  && halo?.style.left === '0px' && halo?.style.top === '0px'
+  && halo?.style.width === '620px' && halo?.style.height === '62px'
+  && halo?.style.borderRadius === 'inherit',
+  halo ? `${halo.style.position}, ${halo.style.left},${halo.style.top} ${halo.style.width}x${halo.style.height}, radius:${halo.style.borderRadius}` : 'none')
 check('...raised quickly', halo?.style.transitionDuration === `${RISE_MS}ms` && halo?.style.opacity === '0.92',
   `${halo?.style.transitionDuration} @ ${halo?.style.opacity}`)
 check('...carrying an inner rim and two diffusion stops',
@@ -527,9 +530,11 @@ run1.document.activeElement = siblingCase.field
 key({ key: 'h' })
 check('a transparent card with a sibling toolbar is lit as ONE box',
   halosIn(siblingCase.card).length === 1, halosIn(siblingCase.card).length)
-check('...reaching the toolbar by construction, through inset:0 on the card\'s box',
+check('...reaching the toolbar by construction: the node is placed on the card\'s measured box',
   siblingCase.card.childNodes.includes(siblingCase.toolbar)
-  && halosIn(siblingCase.card)[0].style.inset === '0')
+  && halosIn(siblingCase.card)[0].style.width === '620px'
+  && halosIn(siblingCase.card)[0].style.height === '104px'
+  && halosIn(siblingCase.card)[0].style.left === '0px')
 key({ key: 'Enter' })
 check('Enter is the stronger case: brighter, with a wider rim',
   halosIn(siblingCase.card)[0].style.opacity === '1'
@@ -613,7 +618,8 @@ check('...a warm honey: warmer than the champagne, short of gold leaf',
   && Number(honey[3]) >= 95,
   honey ? `rgb(${honey[1]},${honey[2]},${honey[3]}) R-B=${Number(honey[1]) - Number(honey[3])}` : 'none')
 check('...with the identical behaviour: at the card edge, fast rise, same curve',
-  goldHalo?.style.inset === '0' && goldHalo?.style.borderRadius === 'inherit'
+  goldHalo?.style.left === '0px' && goldHalo?.style.width === '620px'
+  && goldHalo?.style.borderRadius === 'inherit'
   && goldHalo?.style.transitionDuration === `${RISE_MS}ms`
   && String(goldHalo?.style.transitionTimingFunction).includes('cubic-bezier'))
 
@@ -626,6 +632,25 @@ check('a modifier-only key is ignored',
   run1.body.childNodes.filter((n) => String(n.className).includes('afx-keyglow')).length === 1
   && run1.body.childNodes.filter((n) => String(n.className).includes('afx-keydot')).length === 1,
   'one glow, one dot')
+
+// The bug this placement fixes, asserted so it cannot come back. A card with
+// padding used to light a ring INSIDE its visible edge, because `inset: 0` fills
+// the padding box - twenty pixels in from the border the user can actually see.
+// The node is now placed on the measured box, so the rim lands on that border.
+const padded = composerCard({
+  cardStyle: {
+    backgroundColor: 'rgb(255, 255, 255)', backgroundImage: 'none', borderTopWidth: '0px',
+    borderRadius: '20px', paddingLeft: '20px', paddingRight: '20px', paddingTop: '8px', paddingBottom: '8px',
+  },
+})
+run1.document.activeElement = padded.field
+key({ key: 'p' })
+const paddedHalo = halosIn(padded.card)[0]
+check('a padded card is lit on its border box, not on its padding box',
+  paddedHalo?.style.width === '620px' && paddedHalo?.style.height === '62px'
+  && paddedHalo?.style.left === '0px' && paddedHalo?.style.top === '0px',
+  paddedHalo ? `${paddedHalo.style.left},${paddedHalo.style.top} ${paddedHalo.style.width}x${paddedHalo.style.height}` : 'none')
+
 
 // The observer split: mutations for the swap test, attributes only on the root
 // and on the body, where the shell declares its dark palette.

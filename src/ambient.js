@@ -838,6 +838,45 @@
             cls: String(target.node.className || '').slice(0, 60),
           } : null,
         } : null,
+        // Where the light actually landed, next to where it was asked to land.
+        // The two boxes have to agree: the rim is only on the visible border when
+        // the node covers the same rectangle the target measured.
+        halo: (function () {
+          try {
+            var host = haloHost
+            var node = haloNode
+            var hostRect = host ? rectOf(host) : null
+            var nodeRect = node ? rectOf(node) : null
+            var hostStyle = host ? styleOf(host) : null
+            return {
+              hosted: !!(host && node),
+              box: target ? {
+                l: Math.round(target.box.left),
+                t: Math.round(target.box.top),
+                w: Math.round(target.box.width),
+                h: Math.round(target.box.height),
+              } : null,
+              hostBox: hostRect ? {
+                l: Math.round(hostRect.left),
+                t: Math.round(hostRect.top),
+                w: Math.round(hostRect.width),
+                h: Math.round(hostRect.height),
+              } : null,
+              nodeBox: nodeRect ? {
+                l: Math.round(nodeRect.left),
+                t: Math.round(nodeRect.top),
+                w: Math.round(nodeRect.width),
+                h: Math.round(nodeRect.height),
+              } : null,
+              pad: hostStyle ? {
+                l: Math.round(parseFloat(hostStyle.paddingLeft) || 0),
+                t: Math.round(parseFloat(hostStyle.paddingTop) || 0),
+                r: Math.round(parseFloat(hostStyle.paddingRight) || 0),
+                b: Math.round(parseFloat(hostStyle.paddingBottom) || 0),
+              } : null,
+            }
+          } catch (error) { return null }
+        })(),
         chain: chain,
       })
       try {
@@ -937,21 +976,63 @@
   }
 
   /**
+   * Put the halo node exactly over the box we measured.
+   *
+   * `inset: 0` fills the host's PADDING box, and that is NOT the box the user sees:
+   * a composer card with twenty pixels of side padding would light a rim twenty
+   * pixels inside the visible edge - a ring floating in the middle of the card
+   * instead of tracing its border. The measured box is a viewport rectangle taken
+   * from real border boxes, and the containing block of an absolutely positioned
+   * child is the host's padding box, so the two are related by the host's border
+   * widths.
+   *
+   * Placing the node by hand also keeps the hosted path and the drawn fallback
+   * talking about the same rectangle: `drawHalo` paints at `target.box`, so the
+   * node inside the card has to sit at `target.box` too.
+   */
+  function placeHaloNode(card, node, box) {
+    if (!node || !box) return
+    var rect = rectOf(card)
+    if (!rect) return
+    var style = styleOf(card)
+    var borderLeft = style ? parseFloat(style.borderLeftWidth) || 0 : 0
+    var borderTop = style ? parseFloat(style.borderTopWidth) || 0 : 0
+    // The containing block starts at the host's border box plus its borders.
+    var originX = rect.left + borderLeft
+    var originY = rect.top + borderTop
+    var nodeStyle = node.style
+    nodeStyle.left = (Math.round((box.left - originX) * 100) / 100) + 'px'
+    nodeStyle.top = (Math.round((box.top - originY) * 100) / 100) + 'px'
+    nodeStyle.width = (Math.max(0, Math.round(box.width * 100) / 100)) + 'px'
+    nodeStyle.height = (Math.max(0, Math.round(box.height * 100) / 100)) + 'px'
+    nodeStyle.right = 'auto'
+    nodeStyle.bottom = 'auto'
+  }
+
+  /**
    * The halo node INSIDE the card.
    *
-   * `inset: 0` with `border-radius: inherit` is the whole trick: the node is exactly
-   * the card's box and the card's shape, so it cannot misfit, it follows the card as
-   * it grows, and - being a transition rather than an animation - raising and
-   * lowering it is one continuous value.
+   * The node is a child of the card, so it follows the card as it grows, and -
+   * being a transition rather than an animation - raising and lowering it is one
+   * continuous value. Its box is set by `placeHaloNode` to the measured rectangle,
+   * not by `inset: 0`, so the rim lands on the visible border.
    */
-  function ensureHaloNode(card) {
-    if (haloHost === card && haloNode && haloNode.parentNode) return haloNode
+  function ensureHaloNode(card, box) {
+    if (haloHost === card && haloNode && haloNode.parentNode) {
+      placeHaloNode(card, haloNode, box)
+      return haloNode
+    }
     removeHalo()
     try {
       var node = el('span', null, 'afx-halo')
       var style = node.style
       style.position = 'absolute'
-      style.inset = '0'
+      style.left = '0px'
+      style.top = '0px'
+      style.width = '0px'
+      style.height = '0px'
+      style.right = 'auto'
+      style.bottom = 'auto'
       style.borderRadius = 'inherit'
       style.pointerEvents = 'none'
       style.zIndex = '1'
@@ -962,6 +1043,7 @@
       card.appendChild(node)
       haloNode = node
       haloHost = card
+      placeHaloNode(card, node, box)
       return node
     } catch (error) {
       haloNode = null
@@ -1092,7 +1174,7 @@
       // The node inside the card is the good path: exact by construction and smooth
       // by transition. The drawn halo only runs for a card that cannot host it.
       if (target.node && canHostHalo(target.node)) {
-        var hosted = ensureHaloNode(target.node)
+        var hosted = ensureHaloNode(target.node, target.box)
         if (hosted && raiseHalo(hosted, strong)) return
       }
       if (drawHalo(target, strong)) return

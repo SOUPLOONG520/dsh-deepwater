@@ -231,6 +231,14 @@ The four style contracts the surface layer is held to:
   the page through globals injected at index render; the desktop app instead
   falls back to the defaults compiled into `client.js` and reads the live
   settings back from `/plugins/dsh-deepwater/settings`.
+- **The composer halo has to be placed on the border box.** The halo is a child
+  of the composer card, and an absolutely positioned child is laid out inside
+  the *padding box* of its positioned ancestor - so `inset: 0` lights a ring
+  twenty pixels in from the border the user can actually see, on every card
+  with side padding. The ambience layer now measures the card and writes the
+  halo's `left/top/width/height` explicitly, offset by the border widths, so
+  the rim lands on the visible edge. `verify/verify-ambient.mjs` has a case
+  for it: *a padded card is lit on its border box, not on its padding box*.
 
 ## What the two frames look like
 
