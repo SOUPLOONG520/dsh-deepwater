@@ -690,6 +690,75 @@ check('...and it takes the visible box\'s own radius, not the wrapper\'s',
   framedHalo?.style.borderRadius === '14px',
   framedHalo?.style.borderRadius)
 
+// The shell does not always draw that edge with a border - in the
+// new-conversation composer it is an inset shadow, and a compositor that only
+// knows about borders would light the wrapper instead and miss the edge by the
+// wrapper's padding.
+const inset = composerCard({
+  cardRect: { width: 620, height: 62, right: 710, top: 490, left: 90 },
+  fieldRect: { width: 560, height: 30, right: 660, top: 505, left: 100 },
+  cardStyle: {
+    backgroundColor: 'rgb(255, 255, 255)', backgroundImage: 'none', borderTopWidth: '0px',
+    borderRadius: '20px', paddingLeft: '15px', paddingRight: '15px', paddingTop: '5px', paddingBottom: '5px',
+  },
+})
+const shadowedBox = new Node('div')
+shadowedBox.rect = { width: 580, height: 42, right: 690, top: 495, left: 110 }
+shadowedBox.computed = {
+  backgroundColor: 'rgb(255, 255, 255)', backgroundImage: 'none', borderTopWidth: '0px',
+  borderLeftWidth: '0px', borderRadius: '18px', position: 'relative', overflow: 'visible',
+  boxShadow: 'inset 0 0 0 1px rgba(20, 50, 80, 0.12)', zIndex: 'auto', getPropertyValue: () => '',
+}
+const shadowedField = new Node('textarea')
+shadowedField.rect = { width: 560, height: 30, right: 660, top: 505, left: 100 }
+shadowedField.computed = {
+  backgroundColor: 'transparent', backgroundImage: 'none', position: 'static', zIndex: 'auto',
+  borderRadius: '0px', boxShadow: 'none', getPropertyValue: () => '',
+}
+shadowedBox.appendChild(shadowedField)
+inset.card.appendChild(shadowedBox)
+run1.document.activeElement = shadowedField
+key({ key: 'y' })
+const shadowedHalo = halosIn(inset.card)[0]
+check('an edge drawn with an inset shadow is an edge too',
+  shadowedHalo?.style.left === '20px' && shadowedHalo?.style.top === '5px'
+  && shadowedHalo?.style.width === '580px' && shadowedHalo?.style.height === '42px',
+  shadowedHalo ? `${shadowedHalo.style.left},${shadowedHalo.style.top} ${shadowedHalo.style.width}x${shadowedHalo.style.height}` : 'none')
+
+// The visible box does not have to carry the fill: the card behind it does.
+// What makes the box visible is the edge, and the edge is where the light
+// belongs.
+const ghost = composerCard({
+  cardRect: { width: 620, height: 62, right: 710, top: 490, left: 90 },
+  fieldRect: { width: 560, height: 30, right: 660, top: 505, left: 100 },
+  cardStyle: {
+    backgroundColor: 'rgb(255, 255, 255)', backgroundImage: 'none', borderTopWidth: '0px',
+    borderRadius: '20px', paddingLeft: '15px', paddingRight: '15px', paddingTop: '5px', paddingBottom: '5px',
+  },
+})
+const ghostBox = new Node('div')
+ghostBox.rect = { width: 580, height: 42, right: 690, top: 495, left: 110 }
+ghostBox.computed = {
+  backgroundColor: 'rgba(0, 0, 0, 0)', backgroundImage: 'none', borderTopWidth: '0px',
+  borderLeftWidth: '0px', borderRadius: '18px', position: 'relative', overflow: 'visible',
+  boxShadow: 'inset 0 0 0 1px rgba(20, 50, 80, 0.12)', zIndex: 'auto', getPropertyValue: () => '',
+}
+const ghostField = new Node('textarea')
+ghostField.rect = { width: 560, height: 30, right: 660, top: 505, left: 100 }
+ghostField.computed = {
+  backgroundColor: 'transparent', backgroundImage: 'none', position: 'static', zIndex: 'auto',
+  borderRadius: '0px', boxShadow: 'none', getPropertyValue: () => '',
+}
+ghostBox.appendChild(ghostField)
+ghost.card.appendChild(ghostBox)
+run1.document.activeElement = ghostField
+key({ key: 'u' })
+const ghostHalo = halosIn(ghost.card)[0]
+check('a visible edge without a fill of its own still counts',
+  ghostHalo?.style.left === '20px' && ghostHalo?.style.top === '5px'
+  && ghostHalo?.style.width === '580px' && ghostHalo?.style.height === '42px',
+  ghostHalo ? `${ghostHalo.style.left},${ghostHalo.style.top} ${ghostHalo.style.width}x${ghostHalo.style.height}` : 'none')
+
 
 // The observer split: mutations for the swap test, attributes only on the root
 // and on the body, where the shell declares its dark palette.

@@ -605,6 +605,17 @@
     return top > 0 || left > 0
   }
 
+  // Does this element draw an edge the user can see? A border is the obvious
+  // way, but the shell often draws the visible line with an inset shadow
+  // instead - the composer box in the new-conversation page does - and a
+  // compositor that only knows about borders would light the wrong box.
+  function paintsEdge(style) {
+    if (hasBorder(style)) return true
+    var shadow = style && style.boxShadow
+    if (!shadow || shadow === 'none') return false
+    return /inset/.test(String(shadow))
+  }
+
   /**
    * A single px corner radius, or an empty string to keep the default.
    *
@@ -716,10 +727,12 @@
       // composer box any more - it is the column, or the page.
       if (!rect || Math.abs(rect.width - fieldRect.width) > tolerance) break
       if (!fitsField(fieldRect, rect, viewportHeight)) break
-      // The first ancestor that draws a border IS the visible box: the composer
-      // card around it is a padded wrapper, and the glow belongs on the border
-      // the user can see, not on the wrapper's outer edge.
-      if (!framed && hasBorder(style)) {
+      // The first ancestor that draws a visible edge IS the visible box: the
+      // composer card around it is a padded wrapper, and the glow belongs on
+      // the border the user can see, not on the wrapper's outer edge. The edge
+      // may be a border or an inset shadow - the shell uses both - but it has
+      // to be an INSIDE edge: an outside shadow is a glow, not a border.
+      if (!framed && paintsEdge(style)) {
         framed = { rect: rect, style: style }
       }
       left = Math.min(left, rect.left)
@@ -836,6 +849,11 @@
           pos: style ? String(style.position || '') : '',
           z: style ? String(style.zIndex || '') : '',
           painted: style && isPainted(style) ? 1 : 0,
+          // Does this level draw the edge the user sees? The shell sometimes
+          // uses a border, sometimes an inset shadow, and the two are not the
+          // same answer.
+          edge: style && paintsEdge(style) ? 1 : 0,
+          shadow: style ? String(style.boxShadow || '').slice(0, 60) : '',
           fits: rect && fitsField(fieldRect, rect, vh) ? 1 : 0,
         })
         node = node.parentElement || null
@@ -1429,8 +1447,16 @@
       globalThis.setTimeout(function () {
         if (!reported) reported = reportChain('scan')
       }, 4000)
+      // A focus is cheap and rare, and a report is how a fit that is still
+      // wrong gets fixed from the real DOM instead of from another assumption.
+      // The automatic report of a page load is the first one; after that every
+      // focus refreshes it, so the structure of any page can be read without
+      // reloading the app.
+      var lastFocusReport = 0
       on(globalThis, 'focusin', function () {
-        if (reported) return
+        var now = Date.now()
+        if (now - lastFocusReport < 1500) return
+        lastFocusReport = now
         reported = reportChain('focusin')
       }, true)
     }
