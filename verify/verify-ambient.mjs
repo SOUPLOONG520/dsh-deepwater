@@ -552,8 +552,9 @@ check('...so the fallback halo is drawn at the field, in DOCUMENT coordinates',
   wideGlow?.style.left === '100px' && wideGlow?.style.top === '500px'
   && wideGlow?.style.width === '600px' && wideGlow?.style.height === '40px',
   wideGlow ? `${wideGlow.style.left},${wideGlow.style.top},${wideGlow.style.width},${wideGlow.style.height}` : 'none')
-check('...as a guess it carries no rim, only diffusion',
-  !!wideGlow && !String(wideGlow.style.boxShadow).includes('inset'),
+check('...as a guess it carries no rim at all, only diffusion',
+  !!wideGlow && !String(wideGlow.style.boxShadow).includes('inset')
+  && !/(^|,)\s*0 0 0 \d+px/.test(String(wideGlow.style.boxShadow)),
   String(wideGlow?.style.boxShadow ?? 'none'))
 check('...and it is raised and lowered exactly the same way',
   wideGlow?.style.opacity === '0.92' && wideGlow?.style.transitionDuration === `${RISE_MS}ms`
@@ -566,6 +567,23 @@ run1.document.activeElement = staticCard.field
 key({ key: 'j' })
 check('a static card cannot host a node, so it gets the drawn halo instead',
   halosIn(staticCard.card).length === 0 && drawnHalos().length === 1, drawnHalos().length)
+
+// The fallback node is painted OVER the card, so it cannot draw its edge from
+// the inside without covering the text. It used to draw no edge at all, and
+// the light read as a soft cloud floating around the composer instead of a
+// line on its border - the "the glow is not on the edge" complaint. Now it
+// draws a ring just outside the box, which traces the same border.
+const staticGlow = drawnHalos().pop()
+check('...and that fallback still draws the edge, as a ring just outside the box',
+  !!staticGlow && String(staticGlow.style.boxShadow).includes('0 0 0 2px')
+  && !String(staticGlow.style.boxShadow).includes('inset')
+  && String(staticGlow.style.boxShadow).includes('rgba(158,228,255,.60)'),
+  String(staticGlow?.style.boxShadow ?? 'none'))
+check('...sitting on the card\'s own box, so the ring traces the border the user sees',
+  staticGlow?.style.left === '90px' && staticGlow?.style.top === '490px'
+  && staticGlow?.style.width === '620px' && staticGlow?.style.height === '62px'
+  && staticGlow?.style.borderRadius === '20px',
+  staticGlow ? `${staticGlow.style.left},${staticGlow.style.top},${staticGlow.style.width}x${staticGlow.style.height}, radius:${staticGlow.style.borderRadius}` : 'none')
 
 // The effect lives in inline styles now, so the stylesheet is asserted for what it
 // must no longer carry, plus the two things that must remain.

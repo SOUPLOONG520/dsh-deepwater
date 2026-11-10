@@ -247,6 +247,21 @@ The four style contracts the surface layer is held to:
   actually draws a border and lights *that* box, with that box's own radius.
   `verify/verify-ambient.mjs` has cases for it: *the glow lands on the bordered
   box the user sees, not on the padded card around it*.
+- **Both halo paths have to draw the edge.** The halo normally lives inside the
+  composer card and draws its rim with an inset shadow. When the card cannot host
+  a node - a static position, or an overflow that would clip it - the layer
+  falls back to a node painted over the card at body level. That node cannot
+  draw an inset shadow without covering the text, and it used to draw no edge
+  at all, so the light read as a soft cloud floating around the composer rather
+  than a line on its border. It now draws a ring just outside the box instead,
+  which traces the same border. A target that is only a guess - a bare field
+  with no composer box around it - keeps the plain diffusion.
+  `verify/verify-ambient.mjs` has a case for it: *...and that fallback still
+  draws the edge, as a ring just outside the box*.
+- **An edge can be an inset shadow.** The shell draws some of its edges with an
+  inset `box-shadow` rather than a border, so a rule that only looks for a
+  border width cannot see them. The layer treats a border *or* an inset shadow
+  as a visible edge.
 
 ## What the two frames look like
 

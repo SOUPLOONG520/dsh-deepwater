@@ -1030,9 +1030,15 @@
    * to say against a blue page.
    *
    * @param strong - Enter gets a wider, brighter version.
-   * @param withRim - false for the drawn fallback, whose shape is a guess.
+   * @param rimMode - 'inset' for the node inside the card, 'outer' for the
+   *   body level fallback (its node is painted over the card and must not
+   *   cover its text), false for a target that is only a guess.
+   *
+   * The fallback used to run without any edge at all, so the light read as a
+   * soft cloud floating around the composer instead of a line ON its border -
+   * which is exactly the "the glow does not sit on the edge" complaint.
    */
-  function haloShadow(strong, withRim) {
+  function haloShadow(strong, rimMode) {
     var light = false
     try { light = document.documentElement.classList.contains('afx-light') } catch (error) { light = false }
     var rim = light ? 'rgba(214,170,110,.72)' : 'rgba(158,228,255,.60)'
@@ -1040,7 +1046,10 @@
     var far = light ? 'rgba(208,158,92,.28)' : 'rgba(70,166,235,.26)'
     var width = strong ? 3 : 2
     var scale = strong ? 1.25 : 1
-    return (withRim ? 'inset 0 0 0 ' + width + 'px ' + rim + ',' : '')
+    var edge = ''
+    if (rimMode === 'inset') edge = 'inset 0 0 0 ' + width + 'px ' + rim + ','
+    else if (rimMode === 'outer') edge = '0 0 0 ' + width + 'px ' + rim + ','
+    return edge
       + '0 0 ' + Math.round(40 * scale) + 'px ' + Math.round(14 * scale) + 'px ' + near
       + ',0 0 ' + Math.round(130 * scale) + 'px ' + Math.round(30 * scale) + 'px ' + far
   }
@@ -1161,11 +1170,11 @@
    * fast typing holds one steady glow instead of restarting a flash, and the long
    * eased fall starts only once the typing actually pauses.
    */
-  function raiseHalo(node, strong) {
+  function raiseHalo(node, strong, rimMode) {
     if (!node) return false
     try {
       node.style.transitionDuration = RISE_MS + 'ms'
-      node.style.boxShadow = haloShadow(strong, node === haloNode)
+      node.style.boxShadow = haloShadow(strong, rimMode)
       node.style.opacity = String(strong ? LIT_OPACITY_STRONG : LIT_OPACITY)
     } catch (error) {
       return false
@@ -1227,7 +1236,12 @@
     } catch (error) {
       return false
     }
-    return raiseHalo(node, strong)
+    // The fallback node is painted over the card, so its edge cannot be inset
+    // without covering the text. It is drawn as a ring just outside the box
+    // instead, which traces the same border the hosted node would light from
+    // the inside. A target that is only a guess (a bare field, with no
+    // composer box around it) keeps the plain diffusion.
+    return raiseHalo(node, strong, target.exact ? 'outer' : false)
   }
 
   function onPointerMove(event) {
@@ -1248,7 +1262,7 @@
       // by transition. The drawn halo only runs for a card that cannot host it.
       if (target.node && canHostHalo(target.node)) {
         var hosted = ensureHaloNode(target.node, target.box)
-        if (hosted && raiseHalo(hosted, strong)) return
+        if (hosted && raiseHalo(hosted, strong, 'inset')) return
       }
       if (drawHalo(target, strong)) return
     }
