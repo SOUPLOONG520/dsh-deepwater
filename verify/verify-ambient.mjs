@@ -573,11 +573,20 @@ check('a static card cannot host a node, so it gets the drawn halo instead',
 // the light read as a soft cloud floating around the composer instead of a
 // line on its border - the "the glow is not on the edge" complaint. Now it
 // draws a ring just outside the box, which traces the same border.
+// And because that ring sits on the BODY, not inside a clipping card, its
+// bloom must run with zero spread: the welcome page's warm halo bleeding into
+// the white margin beside the card is what read as "it spills out left and
+// right". Blur radius survives; the outward push does not.
 const staticGlow = drawnHalos().pop()
 check('...and that fallback still draws the edge, as a ring just outside the box',
   !!staticGlow && String(staticGlow.style.boxShadow).includes('0 0 0 2px')
   && !String(staticGlow.style.boxShadow).includes('inset')
   && String(staticGlow.style.boxShadow).includes('rgba(158,228,255,.60)'),
+  String(staticGlow?.style.boxShadow ?? 'none'))
+check('...but its bloom carries no spread, so nothing bleeds past the card edges',
+  !!staticGlow
+  && /(^|,)0 0 \d+px 0px /.test(String(staticGlow.style.boxShadow))
+  && !/(^|,)0 0 \d+px [1-9]\d*px /.test(String(staticGlow.style.boxShadow)),
   String(staticGlow?.style.boxShadow ?? 'none'))
 check('...sitting on the card\'s own box, so the ring traces the border the user sees',
   staticGlow?.style.left === '90px' && staticGlow?.style.top === '490px'
@@ -597,11 +606,11 @@ check('the drawn fallback is still absolute, not fixed',
   cssText.includes('.afx-keyglow{position:absolute;pointer-events:none;z-index:1}'))
 check('the pointer dot still animates', cssText.includes('@keyframes afx-keyglow'))
 check('...and the dot follows the theme too',
-  cssText.includes('html.afx-light .afx-keydot{background:radial-gradient(50% 50% at 50% 50%,rgba(224,186,124,.48)'))
+  cssText.includes('html.afx-light .afx-keydot{background:radial-gradient(50% 50% at 50% 50%,rgba(238,196,150,.46)'))
 
 // The migration rule, asserted rather than assumed: ONE mechanism, two palettes. The
-// light frame's light is pale gold - a warm accent on the cool blue page, and the one
-// hue that still reads as light over a near-white card.
+// light frame's light is apricot-cream - a soft warm accent on the cool blue page,
+// visible as light over the near-white card without the orange glare of old honey.
 const goldRun = runAmbient({ particles: 1 }, { dark: false })
 const goldKey = goldRun.windowListeners.find((l) => l.type === 'keydown').fn
 const goldCard = new Node('div')
@@ -623,17 +632,18 @@ goldKey({ key: 'a' })
 const goldHalo = halosIn(goldCard)[0]
 check('the light frame is detected as light in this sandbox too',
   goldRun.html.classList.contains('afx-light'))
-check('a light frame gets honey, not the dark frame\'s cyan',
-  !!goldHalo && String(goldHalo.style.boxShadow).includes('rgba(214,170,110,.72)')
+check('a light frame gets the apricot-cream glow, not the dark frame\'s cyan',
+  !!goldHalo && String(goldHalo.style.boxShadow).includes('rgba(236,188,140,.66)')
   && !String(goldHalo.style.boxShadow).includes('158,228,255'),
   String(goldHalo?.style.boxShadow ?? 'none'))
-// "Slightly warmer" is a band here, not a taste: the saturated gold leaf it started as
-// was R-B 134 (metal) and the cool champagne it went to was 66 (beige). Asserting the
-// warm middle keeps a future edit from quietly sliding back to either end.
+// "Warm but soft" is a band here, not a taste: the orange-gold honey the user rejected
+// sat at R-B 104; the neutral white that vanished on screen was R-B ~4. Apricot-cream
+// (236,188,140 → R-B 96) keeps a visible warm hue while pulling off the saturated edge.
+// Asserting the band stops a future edit sliding back to either rejected extreme.
 const honey = /inset 0 0 0 2px rgba\((\d+),(\d+),(\d+)/.exec(String(goldHalo?.style.boxShadow))
-check('...a warm honey: warmer than the champagne, short of gold leaf',
-  !!honey && Number(honey[1]) - Number(honey[3]) >= 85 && Number(honey[1]) - Number(honey[3]) <= 125
-  && Number(honey[3]) >= 95,
+check('...a warm apricot: still warm enough to read as light, soft enough to not glare',
+  !!honey && Number(honey[1]) - Number(honey[3]) >= 70 && Number(honey[1]) - Number(honey[3]) <= 110
+  && Number(honey[3]) >= 110,
   honey ? `rgb(${honey[1]},${honey[2]},${honey[3]}) R-B=${Number(honey[1]) - Number(honey[3])}` : 'none')
 check('...with the identical behaviour: at the card edge, fast rise, same curve',
   goldHalo?.style.left === '0px' && goldHalo?.style.width === '620px'

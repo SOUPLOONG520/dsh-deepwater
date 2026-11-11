@@ -258,6 +258,16 @@ The four style contracts the surface layer is held to:
   with no composer box around it - keeps the plain diffusion.
   `verify/verify-ambient.mjs` has a case for it: *...and that fallback still
   draws the edge, as a ring just outside the box*.
+- **The fallback bloom must not spread.** A card that clips its own overflow -
+  the new-conversation composer does - cannot host the node inside it, so the
+  halo is painted at body level over the card. There the outer bloom's positive
+  spread pushed warm light sideways into the white page margin beside the card,
+  which read as the glow spilling out of the composer on the left and right.
+  The exact-box fallback path now runs its near/far bloom with zero spread: same
+  colour, same blur falloff, nothing reaching past the element's own box. Guess
+  targets keep the diffuse version; the hosted path keeps its full aura.
+  `verify/verify-ambient.mjs` has a case for it: *...but its bloom carries no
+  spread, so nothing bleeds past the card edges*.
 - **An edge can be an inset shadow.** The shell draws some of its edges with an
   inset `box-shadow` rather than a border, so a rule that only looks for a
   border width cannot see them. The layer treats a border *or* an inset shadow

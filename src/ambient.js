@@ -224,7 +224,7 @@
       'animation:afx-keyglow .50s ease-out forwards}',
       // The dot is the only part of the light that lives in CSS, so its colour needs
       // the same theme split the inline shadows get in JS.
-      'html.afx-light .afx-keydot{background:radial-gradient(50% 50% at 50% 50%,rgba(224,186,124,.48),transparent 70%)}',
+      'html.afx-light .afx-keydot{background:radial-gradient(50% 50% at 50% 50%,rgba(238,196,150,.46),transparent 70%)}',
       // The caption buttons are painted by Windows, not by the page: their plate
       // takes the shell's sidebar fill, and once clearFrame() makes the 40px title
       // strip transparent that plate lands on the ambient gradient and reads as a
@@ -770,7 +770,6 @@
         node: outermost,
       }
     }
-
     return {
       box: { left: left, top: top, width: right - left, height: bottom - top },
       radius: radius,
@@ -809,6 +808,10 @@
   }
 
   var reported = false
+  // The keystroke report is the one that names which path drew the halo, so it
+  // gets its own flag: sharing `reported` with focusin/scan meant the first
+  // focus event ate it and the real drawing path was never observed.
+  var reportedKeystroke = false
 
   /**
    * Send the ancestor chain this plugin actually sees to the Host.
@@ -1045,25 +1048,35 @@
    * @param rimMode - 'inset' for the node inside the card, 'outer' for the
    *   body level fallback (its node is painted over the card and must not
    *   cover its text), false for a target that is only a guess.
+   * @param spread - true (default) lets the near/far bloom push OUTSIDE the box
+   *   with a positive spread; the welcome composer's drawn halo passes false so
+   *   the glow stays an aura hugging the border instead of bleeding sideways
+   *   onto the page beside it - the "it spills out left and right" complaint.
    *
    * The fallback used to run without any edge at all, so the light read as a
    * soft cloud floating around the composer instead of a line ON its border -
    * which is exactly the "the glow does not sit on the edge" complaint.
    */
-  function haloShadow(strong, rimMode) {
+  function haloShadow(strong, rimMode, spread) {
+    if (spread === undefined) spread = true
     var light = false
     try { light = document.documentElement.classList.contains('afx-light') } catch (error) { light = false }
-    var rim = light ? 'rgba(214,170,110,.72)' : 'rgba(158,228,255,.60)'
-    var near = light ? 'rgba(236,200,132,.50)' : 'rgba(104,200,255,.46)'
-    var far = light ? 'rgba(208,158,92,.28)' : 'rgba(70,166,235,.26)'
+    var rim = light ? 'rgba(236,188,140,.66)' : 'rgba(158,228,255,.60)'
+    var near = light ? 'rgba(246,214,170,.48)' : 'rgba(104,200,255,.46)'
+    var far = light ? 'rgba(226,180,130,.26)' : 'rgba(70,166,235,.26)'
     var width = strong ? 3 : 2
     var scale = strong ? 1.25 : 1
     var edge = ''
     if (rimMode === 'inset') edge = 'inset 0 0 0 ' + width + 'px ' + rim + ','
     else if (rimMode === 'outer') edge = '0 0 0 ' + width + 'px ' + rim + ','
+    // Zero spread keeps each blur ring from reaching past the element's own box:
+    // same colour, same falloff, but nothing bleeds into the white margin beside
+    // the card. The blur radius still grows with scale, so the softness survives.
+    var nearSpread = spread ? Math.round(14 * scale) : 0
+    var farSpread = spread ? Math.round(30 * scale) : 0
     return edge
-      + '0 0 ' + Math.round(40 * scale) + 'px ' + Math.round(14 * scale) + 'px ' + near
-      + ',0 0 ' + Math.round(130 * scale) + 'px ' + Math.round(30 * scale) + 'px ' + far
+      + '0 0 ' + Math.round(40 * scale) + 'px ' + nearSpread + 'px ' + near
+      + ',0 0 ' + Math.round(130 * scale) + 'px ' + farSpread + 'px ' + far
   }
 
   /**
@@ -1182,11 +1195,11 @@
    * fast typing holds one steady glow instead of restarting a flash, and the long
    * eased fall starts only once the typing actually pauses.
    */
-  function raiseHalo(node, strong, rimMode) {
+  function raiseHalo(node, strong, rimMode, spread) {
     if (!node) return false
     try {
       node.style.transitionDuration = RISE_MS + 'ms'
-      node.style.boxShadow = haloShadow(strong, rimMode)
+      node.style.boxShadow = haloShadow(strong, rimMode, spread)
       node.style.opacity = String(strong ? LIT_OPACITY_STRONG : LIT_OPACITY)
     } catch (error) {
       return false
@@ -1253,7 +1266,13 @@
     // instead, which traces the same border the hosted node would light from
     // the inside. A target that is only a guess (a bare field, with no
     // composer box around it) keeps the plain diffusion.
-    return raiseHalo(node, strong, target.exact ? 'outer' : false)
+    //
+    // And when the box IS exact - the welcome composer, whose card clips its
+    // own overflow so the node could not live inside it - the bloom runs with
+    // zero spread: an outer ring plus a 130px/30px halo on a body-level node
+    // bleeds warm light into the white page margin beside the card, and that
+    // side-bleed is what read as "the glow spills out left and right".
+    return raiseHalo(node, strong, target.exact ? 'outer' : false, target.exact ? false : true)
   }
 
   function onPointerMove(event) {
@@ -1263,7 +1282,7 @@
   function onKeyDown(event) {
     if (!F.keyGlow) return
     if (event && (event.isComposing || event.keyCode === 229)) return // IME mid-composition
-    if (!reported) reported = reportChain('keystroke')
+    if (!reportedKeystroke) { reportedKeystroke = true; reportChain('keystroke') }
     var key = event && event.key
     if (!key) return
     var strong = key === 'Enter'
